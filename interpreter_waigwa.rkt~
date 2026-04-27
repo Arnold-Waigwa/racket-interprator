@@ -239,8 +239,6 @@
     (cond
       ((primitive-procedure? proc)
        (apply-primitive-procedure proc vals))
-      ((closure? proc)
-       (apply-closure proc vals))         
       (else (error "i-apply::unknown procedure type" proc)))))
 
 ;; ============================================================
@@ -332,112 +330,6 @@
           (eval-cond (rest-of-cond-exps exp) env)))))))
 
 ;; ============================================================
-;; IMPLEMENTATION: lambda
-;; ============================================================
-
-(define lambda?
-  (lambda (exp)
-    (tagged-list? exp 'lambda)))
-
-
-;; ============================================================
-;; ABSTRACTION: closure
-;; ============================================================
-
-(define make-closure
-  (lambda (lambda-exp env)
-    (list 'closure lambda-exp env)))
-
-(define closure?
-  (lambda (exp)
-    (tagged-list? exp 'closure)))
-
-(define procedure-parameters
-  (lambda (closure)
-    (second (second closure))))
-
-(define procedure-body
-  (lambda (closure)
-    (cddr (second closure))))
-
-(define procedure-env
-  (lambda (closure)
-    (third closure)))
-
-(define apply-closure
-  (lambda (closure vals)
-    (let* ((params  (procedure-parameters closure))
-           (body    (procedure-body closure))
-           (env     (procedure-env closure))
-           (new-env (extend-env params vals env)))
-      (eval-begin (cons 'begin body) new-env))))
-
-;; ============================================================
-;; IMPLEMENTATION: let
-;; ============================================================
-
-(define let?
-  (lambda (exp)
-    (tagged-list? exp 'let)))
-
-(define let->lambda
-  (lambda (exp)
-    (let* ((bindings (second exp))          
-           (vars     (map first bindings))  
-           (vals     (map second bindings)) 
-           (body     (cddr exp)))           
-      (cons (cons 'lambda (cons vars body))
-            vals))))                        
-
-(define (eval-let exp env)
-  (i-eval (let->lambda exp) env))
-
-;; ============================================================
-;; EXTRA CREDIT: map / filter / fold
-;; ============================================================
-
-(define (map? exp)
-  (tagged-list? exp 'map))
-
-(define (eval-map exp env)
-  (let ((proc (i-eval (second exp) env))
-        (lst  (i-eval (third exp) env)))
-    (if (null? lst)
-        '()
-        (cons (i-apply proc (list (first lst)))
-              (eval-map (list 'map (list 'quote proc)
-                              (list 'quote (rest lst)))
-                        env)))))
-
-(define (filter? exp)
-  (tagged-list? exp 'filter))
-
-(define (eval-filter exp env)
-  (let ((proc (i-eval (second exp) env))
-        (lst  (i-eval (third exp) env)))
-    (define (filter-helper lst)
-      (cond
-        ((null? lst) '())
-        ((i-apply proc (list (first lst)))
-         (cons (first lst) (filter-helper (rest lst))))
-        (else (filter-helper (rest lst)))))
-    (filter-helper lst)))
-
-(define (fold? exp)
-  (tagged-list? exp 'fold))
-
-(define (eval-fold exp env)
-  (let ((proc (i-eval (second exp) env))
-        (base (i-eval (third exp) env))
-        (lst  (i-eval (fourth exp) env)))
-    (define (fold-helper acc lst)
-      (if (null? lst)
-          acc
-          (fold-helper (i-apply proc (list (first lst) acc))
-                       (rest lst))))
-    (fold-helper base lst)))
-
-;; ============================================================
 ;; EXTRA CREDIT: and / or
 ;; ============================================================
 
@@ -481,16 +373,11 @@
       ((string? exp)       exp)
       ((quoted? exp)       (text-of-quotation exp))
       ((definition? exp)   (eval-definition exp env))
-      ((lambda? exp)       (make-closure exp env)) 
-      ((let? exp)          (eval-let exp env))       
       ((begin? exp)        (eval-begin exp env))
       ((if? exp)           (eval-if exp env))
       ((cond? exp)         (eval-cond exp env))
-      ((and? exp)          (eval-and exp env))
-      ((or? exp)           (eval-or exp env))
-      ((map? exp)          (eval-map exp env))       
-      ((filter? exp)       (eval-filter exp env))   
-      ((fold? exp)         (eval-fold exp env))      
+      ((and? exp)          (eval-and exp env))       
+      ((or? exp)           (eval-or exp env))        
       ((variable? exp)     (lookup-variable exp env))
       ((application? exp)  (eval-application exp env))
       (else (error "i-eval::unknown expression type" exp)))))
